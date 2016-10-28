@@ -1,19 +1,20 @@
 #pragma once
 #include <vector>
+#include "Grid.h"
 
 class HilbertsCurve
 {
 public:
 
 	void Draw();
-	void ScaleUpGrid(std::vector<size_t>& DestVec, const std::vector<size_t>& SrcVec, size_t chunkSize);
-	void GenerateCurve(size_t XYSize);
-	std::vector<size_t> GetCurve();
+	void ScaleUpGrid(std::vector<int>& DestVec, const std::vector<int>& SrcVec, int chunkSize);
+	void GenerateCurve(int XYSize);
+	Grid& GetCurve();
 private:
 
-	void flipLeft(std::vector<size_t>::iterator start, size_t chunkSize, std::vector<size_t> vec);
-	void flipRight(std::vector<size_t>::iterator start, size_t chunkSize, std::vector<size_t> vec);
-	std::vector<size_t> curve;
-	size_t GridSize;
+	void flipLeft(std::vector<int>::iterator start, int chunkSize, std::vector<int> vec);
+	void flipRight(std::vector<int>::iterator start, int chunkSize, std::vector<int> vec);
+	Grid Curve;
+	int GridSize;
 
 };

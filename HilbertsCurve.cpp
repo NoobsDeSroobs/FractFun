@@ -1,292 +1,77 @@
 #include "HilbertsCurve.h"
+#include <assert.h>
+#include <SDL.h>
 
 
-
-void HilbertsCurve::GenerateCurve(size_t XYSize)
+void HilbertsCurve::GenerateCurve(int XYSize)
 {
 	GridSize = XYSize;
 	bool isPowOf2 = (XYSize != 0) && ((XYSize & (XYSize - 1)) == 0);
-	
-	if (!isPowOf2) {
-		fprintf(stderr, "Grid size not a power of two.");
-		return;
-	}
-
-	curve.resize(XYSize*XYSize);
-
-	std::vector<size_t> tempVec = { 2, 0, 1, 3 };
+	assert(isPowOf2);
 
 
-	size_t currSize = 2;
-	while (currSize < XYSize) {
-		currSize = currSize * 2;
-		//Create the new vector by appending the prior vector four times, with the required rotations.
-		std::vector<size_t> CurrentGrid(currSize*currSize);
-		//Add 4 copies of tempVec
-		ScaleUpGrid(CurrentGrid, tempVec, currSize);
-		size_t quarter = currSize/2;
-		flipLeft(CurrentGrid.begin(), quarter, CurrentGrid);
-		flipRight(CurrentGrid.begin()+(quarter*quarter)*3, quarter, CurrentGrid);
+	std::vector<int> tempVec = { 2, 0, 1, 3 };
 
-		tempVec = std::vector<size_t>(CurrentGrid);
+	Grid NewGrid(tempVec);
+	while (NewGrid.GetSideSize() < XYSize) {
+		NewGrid = NewGrid.ScaleUp();
 	}
 	
-	curve = std::vector<size_t>(tempVec);
+	Curve = NewGrid;
 }
 
-std::vector<size_t> HilbertsCurve::GetCurve()
+Grid& HilbertsCurve::GetCurve()
 {
-	return curve;
+	return Curve;
 }
 
-void HilbertsCurve::flipLeft(std::vector<size_t>::iterator start, size_t chunkSize, std::vector<size_t> vec)
-{
-	std::vector<size_t>::iterator chunkStart = start;
-	std::vector<size_t>::iterator chunkEnd = start + (chunkSize*chunkSize);
+void HilbertsCurve::Draw() {
+	size_t size = Curve.GetSideSize();
+	////The image
+	SDL_Window* screen = NULL;
+	SDL_Renderer* renderer = NULL;
+	//
+	////Start SDL
+	SDL_Init(SDL_INIT_EVERYTHING);
 
-	std::vector<size_t> chunk(chunkStart, chunkEnd);
-	std::vector<size_t> smallChunk(chunk.size());
+	float CellSizePx = 800.0f / size;
+	SDL_CreateWindowAndRenderer(800, 800, SDL_WINDOW_SHOWN, &screen, &renderer);
+	//std::vector<int> tempVec = h.GetCurve();// { 0, 4, 5, 1, 2, 3, 7, 6, 10, 11, 15, 14, 13 ,9, 8, 12};
 
-	//Translate from NxN to (N/2)x(N/2)
-	for (int i = 0; i < chunk.size(); ++i) {
-		size_t largeIndex = chunk[i];
-		int largeX = largeIndex % (chunkSize*chunkSize);
-		int largeY = largeIndex / (chunkSize*chunkSize);
-
-		int XOffset = 0;
-		int YOffset = chunkSize;
-
-		int smallX = largeX - XOffset;
-		int smallY = largeY - YOffset;
-
-		int smallIndex = smallX + (smallY*chunkSize);
-
-		smallChunk[i] = smallIndex;
-	}
-
-	//Flip
-	for (int i = 0; i < chunkSize; i++)
-	{
-		int val = smallChunk[i];
-		int x = val % chunkSize;
-		int y = val / chunkSize;
-
-		int mirrorX = (chunkSize - 1 - y);
-		int mirrorY = (chunkSize - 1 - x);
-		int mirrorIndex = (mirrorY*chunkSize) + mirrorX;//((chunkSize - 1 - j)*chunkSize) + (chunkSize - 1 - i);
-		int j = -1;
-
-		for (int test = 0; test < smallChunk.size(); ++test) {
-			if(smallChunk[test] == mirrorIndex) {
-				j = test;
-				break;
-			}
-		}
-		
-		if (j != -1)
+	SDL_Event event;
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
+	const std::vector<int>&& ToRender = std::move(Curve.GridOrder);
+	SDL_PollEvent(&event);
+	bool Rendered = false;
+	while(event.key.keysym.sym != SDLK_ESCAPE){
+		for (int i = 0; !Rendered && i < ToRender.size() - 1; ++i)
 		{
-			int temp = smallChunk[i];
-			smallChunk[i] = smallChunk[j];
-			smallChunk[j] = temp;
+			uint32_t colour = (i / (float)ToRender.size())* std::numeric_limits<uint32_t>::max();
+			uint32_t r = colour >> (8*3);
+			r = r & 255;
+			uint32_t g = colour >> (8 * 2);
+			g = g & 255;
+			uint32_t b = colour >> (8 * 1);
+			b = b & 255;
+			uint32_t a = 255;
+
+			SDL_SetRenderDrawColor(renderer, r, g, b, a);
+			int x1 = ToRender[i] % size;
+			int y1 = ToRender[i] / size;
+			int x2 = ToRender[i + 1] % size;
+			int y2 = ToRender[i + 1] / size;
+			SDL_Delay(10);
+			SDL_RenderDrawLine(renderer, (x1*CellSizePx) + CellSizePx / 2, (y1*CellSizePx) + CellSizePx / 2, (x2*CellSizePx) + CellSizePx / 2, (y2*CellSizePx) + CellSizePx / 2);
+			SDL_RenderPresent(renderer);
+			SDL_PollEvent(&event);
 		}
+		Rendered = true;
+		SDL_RenderPresent(renderer);
+		//Take a quick break after all that hard work
+		SDL_Delay(10);
+		SDL_PollEvent(&event);
 	}
-	//Translate from (N/2)x(N/2) to NxN
-	for (int i = 0; i < smallChunk.size(); ++i)
-	{
-		size_t smallIndex = smallChunk[i];
-		int smallX = smallIndex % chunkSize;
-		int smallY = smallIndex / chunkSize;
-
-		int XOffset = 0;
-		int YOffset = chunkSize;
-
-		int largeX = smallX + XOffset;
-		int largeY = smallY + YOffset;
-
-		int largeIndex = largeX + (largeY*(chunkSize*chunkSize));
-
-		chunk[i] = largeIndex;
-	}
-
-
-	std::copy(chunk.begin(), chunk.end(), start);
-}
-
-void HilbertsCurve::flipRight(std::vector<size_t>::iterator start, size_t chunkSize, std::vector<size_t> vec)
-{
-
-	std::vector<size_t>::iterator chunkStart = start;
-	std::vector<size_t>::iterator chunkEnd = start + (chunkSize*chunkSize);
-
-	std::vector<size_t> chunk(chunkStart, chunkEnd);
-	std::vector<size_t> smallChunk(chunk.size());
-
-	//Translate from NxN to (N/2)x(N/2)
-	for (int i = 0; i < chunk.size(); ++i)
-	{
-		size_t largeIndex = chunk[i];
-		int largeX = largeIndex % (chunkSize*chunkSize);
-		int largeY = largeIndex / (chunkSize*chunkSize);
-
-		int XOffset = chunkSize;
-		int YOffset = chunkSize;
-
-		int smallX = largeX - XOffset;
-		int smallY = largeY - YOffset;
-
-		int smallIndex = smallX + (smallY*chunkSize);
-
-		smallChunk[i] = smallIndex;
-	}
-
-	//Flip
-	for (int i = 0; i < chunkSize; i++)
-	{
-		int val = smallChunk[i];
-		int x = val % chunkSize;
-		int y = val / chunkSize;
-
-		int mirrorX = y;
-		int mirrorY = x;
-		int mirrorIndex = (mirrorY*chunkSize) + mirrorX;//((chunkSize - 1 - j)*chunkSize) + (chunkSize - 1 - i);
-		
-		
-		int j = -1;
-		for (int test = 0; test < smallChunk.size(); ++test)
-		{
-			if (smallChunk[test] == mirrorIndex)
-			{
-				j = test;
-				break;
-			}
-		}
-
-
-		if (j != -1)
-		{
-			int temp = smallChunk[i];
-			smallChunk[i] = smallChunk[j];
-			smallChunk[j] = temp;
-		}
-	}
-	//Translate from (N/2)x(N/2) to NxN
-	for (int i = 0; i < smallChunk.size(); ++i)
-	{
-		size_t smallIndex = smallChunk[i];
-		int smallX = smallIndex % chunkSize;
-		int smallY = smallIndex / chunkSize;
-
-		int XOffset = chunkSize;
-		int YOffset = chunkSize;
-
-		int largeX = smallX + XOffset;
-		int largeY = smallY + YOffset;
-
-		int largeIndex = largeX + (largeY*(chunkSize*chunkSize));
-
-		chunk[i] = largeIndex;
-	}
-	
-
-	std::copy(chunk.begin(), chunk.end(), start);
-
-
-
-
-	//std::vector<size_t>::iterator chunkStart = start;
-	//std::vector<size_t>::iterator chunkEnd = start + (chunkSize*chunkSize);
-
-	//std::vector<size_t> chunk(chunkStart, chunkEnd);
-	//std::vector<size_t> smallChunk(chunk.size());
-
-	////Translate from NxN to (N/2)x(N/2)
-	//for (int i = 0; i < chunk.size(); ++i)
-	//{
-	//	size_t largeIndex = chunk[i];
-	//	int largeX = largeIndex % (chunkSize*chunkSize);
-	//	int largeY = largeIndex / (chunkSize*chunkSize);
-
-	//	int XOffset = 0;
-	//	int YOffset = chunkSize;
-
-	//	int smallX = largeX - XOffset;
-	//	int smallY = largeY - YOffset;
-
-	//	int smallIndex = smallX + (smallY*chunkSize);
-
-	//	smallChunk[i] = smallIndex;
-	//}
-
-	//std::vector<size_t> smallChunkFlipped(chunk.size());
-	////Flip
-	//for (int i = 0; i < smallChunkFlipped.size(); ++i)
-	//{
-	//	int x = i % chunkSize;
-	//	int y = i / chunkSize;
-
-	//	int t = chunkSize - 1 - x;
-	//	x = chunkSize - 1 - y;
-	//	y = t;
-
-	//	int flippedIndex = y + (x*chunkSize);
-	//	smallChunkFlipped[flippedIndex] = smallChunk[i];
-	//}
-
-	////Translate from (N/2)x(N/2) to NxN
-	//for (int i = 0; i < smallChunkFlipped.size(); ++i)
-	//{
-	//	size_t smallIndex = smallChunkFlipped[i];
-	//	int smallX = smallIndex % chunkSize;
-	//	int smallY = smallIndex / chunkSize;
-
-	//	int XOffset = 0;
-	//	int YOffset = chunkSize;
-
-	//	int largeX = smallX + XOffset;
-	//	int largeY = smallY + YOffset;
-
-	//	int largeIndex = largeX + (largeY*(chunkSize*chunkSize));
-
-	//	chunk[i] = largeIndex;
-	//}
-
-
-	//std::copy(chunk.begin(), chunk.end(), start);
-}
-
-void HilbertsCurve::Draw()
-{
-
-}
-
-void HilbertsCurve::ScaleUpGrid(std::vector<size_t>& DestVec, const std::vector<size_t>& SrcVec, size_t largeSize)
-{
-	int ctr = 0;
-	int order[] = {2, 0, 1, 3};
-	for (int i = 0; i < 4; ++i)
-	{
-		int currNum = order[i];
-		int smallSize = largeSize/2;
-
-		int xMult = currNum % 2;
-		int yMult = currNum / 2;
-		int xOffset = smallSize*xMult;
-		int yOffset = smallSize*yMult;
-
-		for (int smallIndex = 0; smallIndex < SrcVec.size(); smallIndex++)
-		{
-			size_t val = SrcVec[smallIndex];
-						
-			int largeX = xOffset + val%smallSize;
-			int largeY = yOffset + val / smallSize;
-			int index = largeX + (largeY*largeSize);
-			DestVec[ctr] = index;
-			ctr++;
-		}
-	}
-
-	for (int i = 0; i < 4; ++i) {
-		
-	}
-
+	//Quit SDL
+	SDL_Quit();
 }
