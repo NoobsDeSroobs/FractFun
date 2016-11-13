@@ -1,11 +1,11 @@
 #include "HilbertsCurve.h"
 #include <assert.h>
-#include <SDL.h>
 
 
 void HilbertsCurve::GenerateCurve(int XYSize)
 {
 	GridSize = XYSize;
+	CurrentGrid = -1;
 	bool isPowOf2 = (XYSize != 0) && ((XYSize & (XYSize - 1)) == 0);
 	assert(isPowOf2);
 
@@ -15,63 +15,107 @@ void HilbertsCurve::GenerateCurve(int XYSize)
 	Grid NewGrid(tempVec);
 	while (NewGrid.GetSideSize() < XYSize) {
 		NewGrid = NewGrid.ScaleUp();
+		Curve.push_back(NewGrid);
+		CurrentGrid++;
 	}
-	
-	Curve = NewGrid;
 }
 
 Grid& HilbertsCurve::GetCurve()
 {
-	return Curve;
+	return Curve[CurrentGrid];
 }
 
 void HilbertsCurve::Draw() {
-	size_t size = Curve.GetSideSize();
-	////The image
-	SDL_Window* screen = NULL;
-	SDL_Renderer* renderer = NULL;
-	//
-	////Start SDL
-	SDL_Init(SDL_INIT_EVERYTHING);
-
-	float CellSizePx = 800.0f / size;
-	SDL_CreateWindowAndRenderer(800, 800, SDL_WINDOW_SHOWN, &screen, &renderer);
-	//std::vector<int> tempVec = h.GetCurve();// { 0, 4, 5, 1, 2, 3, 7, 6, 10, 11, 15, 14, 13 ,9, 8, 12};
-
+	size_t size = Curve[CurrentGrid].GetSideSize();
 	SDL_Event event;
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 	SDL_RenderClear(renderer);
-	const std::vector<int>&& ToRender = std::move(Curve.GridOrder);
+	const std::vector<int>&& ToRender = std::move(Curve[CurrentGrid].GridOrder);
 	SDL_PollEvent(&event);
-	bool Rendered = false;
-	while(event.key.keysym.sym != SDLK_ESCAPE){
-		for (int i = 0; !Rendered && i < ToRender.size() - 1; ++i)
-		{
-			uint32_t colour = (i / (float)ToRender.size())* std::numeric_limits<uint32_t>::max();
-			uint32_t r = colour >> (8*3);
-			r = r & 255;
-			uint32_t g = colour >> (8 * 2);
-			g = g & 255;
-			uint32_t b = colour >> (8 * 1);
-			b = b & 255;
-			uint32_t a = 255;
+	float CellSizePx = 800.0f / size;
+	float ratio = std::numeric_limits<uint32_t>::max() / (float)ToRender.size();
+	for (int i = 0; i < ToRender.size() - 1; ++i)
+	{
+		uint32_t colour = i * ratio;  ;
+		uint32_t r = colour >> (8*3);
+		r = r & 255;
+		uint32_t g = colour >> (8 * 2);
+		g = g & 255;
+		uint32_t b = colour >> (8 * 1);
+		b = b & 255;
+		uint32_t a = 255;
 
-			SDL_SetRenderDrawColor(renderer, r, g, b, a);
-			int x1 = ToRender[i] % size;
-			int y1 = ToRender[i] / size;
-			int x2 = ToRender[i + 1] % size;
-			int y2 = ToRender[i + 1] / size;
-			SDL_Delay(10);
-			SDL_RenderDrawLine(renderer, (x1*CellSizePx) + CellSizePx / 2, (y1*CellSizePx) + CellSizePx / 2, (x2*CellSizePx) + CellSizePx / 2, (y2*CellSizePx) + CellSizePx / 2);
-			SDL_RenderPresent(renderer);
-			SDL_PollEvent(&event);
-		}
-		Rendered = true;
+		SDL_SetRenderDrawColor(renderer, 0, 255, 25, 255);
+		int x1 = ToRender[i] % size;
+		int y1 = ToRender[i] / size;
+		int x2 = ToRender[i + 1] % size;
+		int y2 = ToRender[i + 1] / size;
+		SDL_RenderDrawLine(renderer, (x1*CellSizePx) + CellSizePx / 2, (y1*CellSizePx) + CellSizePx / 2, (x2*CellSizePx) + CellSizePx / 2, (y2*CellSizePx) + CellSizePx / 2);
 		SDL_RenderPresent(renderer);
-		//Take a quick break after all that hard work
-		SDL_Delay(10);
 		SDL_PollEvent(&event);
 	}
+}
+
+void HilbertsCurve::Draw(int Delay)
+{
+	size_t size = Curve[CurrentGrid].GetSideSize();
+	SDL_Event event;
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
+	const std::vector<int>&& ToRender = std::move(Curve[CurrentGrid].GridOrder);
+	SDL_PollEvent(&event);
+	float CellSizePx = 800.0f / size;
+	float ratio = std::numeric_limits<uint32_t>::max() / (float)ToRender.size();
+	for (int i = 0; i < ToRender.size() - 1; ++i)
+	{
+		uint32_t colour = i * ratio; ;
+		uint32_t r = colour >> (8 * 3);
+		r = r & 255;
+		uint32_t g = colour >> (8 * 2);
+		g = g & 255;
+		uint32_t b = colour >> (8 * 1);
+		b = b & 255;
+		uint32_t a = 255;
+
+		SDL_SetRenderDrawColor(renderer, 0, 255, 25, 255);
+		int x1 = ToRender[i] % size;
+		int y1 = ToRender[i] / size;
+		int x2 = ToRender[i + 1] % size;
+		int y2 = ToRender[i + 1] / size;
+		SDL_Delay(Delay);
+		SDL_RenderDrawLine(renderer, (x1*CellSizePx) + CellSizePx / 2, (y1*CellSizePx) + CellSizePx / 2, (x2*CellSizePx) + CellSizePx / 2, (y2*CellSizePx) + CellSizePx / 2);
+		SDL_RenderPresent(renderer);
+		SDL_PollEvent(&event);
+	}
+}
+
+void HilbertsCurve::ScaleUpGrid()
+{
+	CurrentGrid++;
+	if (CurrentGrid >= Curve.size())
+	{
+		Curve.push_back(Curve[CurrentGrid-1].ScaleUp());
+	}
+}
+
+void HilbertsCurve::ScaleDownGrid() {
+	if (CurrentGrid > 0)
+	{
+		CurrentGrid--;
+	}
+}
+
+void HilbertsCurve::CleanUp()
+{
 	//Quit SDL
 	SDL_Quit();
+}
+
+void HilbertsCurve::Init()
+{
+
+	////Start SDL
+	SDL_Init(SDL_INIT_EVERYTHING);
+
+	SDL_CreateWindowAndRenderer(800, 800, SDL_WINDOW_SHOWN, &screen, &renderer);
 }

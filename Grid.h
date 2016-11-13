@@ -28,7 +28,6 @@ public:
 	~Grid();
 	int GetSideSize() const;
 	int GetQuarterSideSize() const;
-	std::unique_ptr<Grid*> GetQuarterGrid();
 
 	Grid ScaleUp() const;
 
